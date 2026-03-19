@@ -1,0 +1,50 @@
+{
+  "name": "emulate",
+  "version": "0.1.0",
+  "description": "Local drop-in replacement services for CI and no-network sandboxes",
+  "license": "Apache-2.0",
+  "type": "module",
+  "homepage": "https://emulate.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vercel-labs/emulate.git",
+    "directory": "packages/emulate"
+  },
+  "bugs": {
+    "url": "https://github.com/vercel-labs/emulate/issues"
+  },
+  "keywords": [
+    "emulator",
+    "mock",
+    "api",
+    "vercel",
+    "github",
+    "google",
+    "oauth",
+    "testing",
+    "ci",
+    "local-development"
+  ],
+  "bin": {
+    "emulate": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1",
+    "@internal/core": "workspace:*",
+    "@internal/github": "workspace:*",
+    "@internal/google": "workspace:*",
+    "@internal/vercel": "workspace:*",
+    "commander": "^14",
+    "picocolors": "^1.1.1",
+    "yaml": "^2"
+  },
+  "devDependencies": {
+    "tsup": "^8",
+    "typescript": "^5.7"
+  }
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.turbo/
+.pnpm-store/
+emulate.config.yaml
+emulate.config.yml
+.env*
+!.env.example
