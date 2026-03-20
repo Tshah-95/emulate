@@ -25,6 +25,9 @@
     "ci",
     "local-development"
   ],
+  "files": [
+    "dist"
+  ],
   "bin": {
     "emulate": "./dist/index.js"
   },
