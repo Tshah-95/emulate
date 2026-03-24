@@ -50,6 +50,15 @@ export function awsErrorXml(c: Context, code: string, message: string, status = 
   return c.text(xml, status, { "Content-Type": "application/xml" });
 }
 
+export function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 export function parseQueryString(body: string): Record<string, string> {
   const params = new URLSearchParams(body);
   const result: Record<string, string> = {};

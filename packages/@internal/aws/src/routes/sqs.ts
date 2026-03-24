@@ -1,6 +1,7 @@
 import type { RouteContext } from "@internal/core";
+import type { Context } from "hono";
 import { getAwsStore } from "../store.js";
-import { awsXmlResponse, awsErrorXml, generateMessageId, generateReceiptHandle, md5, getAccountId, parseQueryString } from "../helpers.js";
+import { awsXmlResponse, awsErrorXml, generateMessageId, generateReceiptHandle, md5, getAccountId, parseQueryString, escapeXml } from "../helpers.js";
 
 export function sqsRoutes(ctx: RouteContext): void {
   const { app, store, baseUrl } = ctx;
@@ -37,7 +38,7 @@ export function sqsRoutes(ctx: RouteContext): void {
     }
   });
 
-  function createQueue(c: any, params: Record<string, string>) {
+  function createQueue(c: Context, params: Record<string, string>) {
     const queueName = params["QueueName"] ?? "";
     if (!queueName) {
       return awsErrorXml(c, "MissingParameter", "The request must contain the parameter QueueName.", 400);
@@ -82,7 +83,7 @@ export function sqsRoutes(ctx: RouteContext): void {
     return awsXmlResponse(c, xml);
   }
 
-  function deleteQueue(c: any, params: Record<string, string>) {
+  function deleteQueue(c: Context, params: Record<string, string>) {
     const queueUrl = params["QueueUrl"] ?? "";
     const queue = aws().sqsQueues.findOneBy("queue_url", queueUrl);
     if (!queue) {
@@ -103,7 +104,7 @@ export function sqsRoutes(ctx: RouteContext): void {
     return awsXmlResponse(c, xml);
   }
 
-  function listQueues(c: any, params: Record<string, string>) {
+  function listQueues(c: Context, params: Record<string, string>) {
     const prefix = params["QueueNamePrefix"] ?? "";
     let queues = aws().sqsQueues.all();
     if (prefix) {
@@ -122,7 +123,7 @@ ${queueUrlsXml}
     return awsXmlResponse(c, xml);
   }
 
-  function getQueueUrl(c: any, params: Record<string, string>) {
+  function getQueueUrl(c: Context, params: Record<string, string>) {
     const queueName = params["QueueName"] ?? "";
     const queue = aws().sqsQueues.findOneBy("queue_name", queueName);
     if (!queue) {
@@ -139,7 +140,7 @@ ${queueUrlsXml}
     return awsXmlResponse(c, xml);
   }
 
-  function getQueueAttributes(c: any, params: Record<string, string>) {
+  function getQueueAttributes(c: Context, params: Record<string, string>) {
     const queueUrl = params["QueueUrl"] ?? "";
     const queue = aws().sqsQueues.findOneBy("queue_url", queueUrl);
     if (!queue) {
@@ -169,7 +170,7 @@ ${queueUrlsXml}
     return awsXmlResponse(c, xml);
   }
 
-  function sendMessage(c: any, params: Record<string, string>) {
+  function sendMessage(c: Context, params: Record<string, string>) {
     const queueUrl = params["QueueUrl"] ?? "";
     const messageBody = params["MessageBody"] ?? "";
 
@@ -226,7 +227,7 @@ ${queueUrlsXml}
     return awsXmlResponse(c, xml);
   }
 
-  function receiveMessage(c: any, params: Record<string, string>) {
+  function receiveMessage(c: Context, params: Record<string, string>) {
     const queueUrl = params["QueueUrl"] ?? "";
     const maxMessages = Math.min(parseInt(params["MaxNumberOfMessages"] ?? "1", 10), 10);
     const visibilityTimeout = parseInt(params["VisibilityTimeout"] ?? "", 10);
@@ -277,7 +278,7 @@ ${messagesXml}
     return awsXmlResponse(c, xml);
   }
 
-  function deleteMessage(c: any, params: Record<string, string>) {
+  function deleteMessage(c: Context, params: Record<string, string>) {
     const queueUrl = params["QueueUrl"] ?? "";
     const receiptHandle = params["ReceiptHandle"] ?? "";
 
@@ -299,7 +300,7 @@ ${messagesXml}
     return awsXmlResponse(c, xml);
   }
 
-  function purgeQueue(c: any, params: Record<string, string>) {
+  function purgeQueue(c: Context, params: Record<string, string>) {
     const queueUrl = params["QueueUrl"] ?? "";
     const queue = aws().sqsQueues.findOneBy("queue_url", queueUrl);
     if (!queue) {
@@ -319,11 +320,3 @@ ${messagesXml}
   }
 }
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}

@@ -1,6 +1,6 @@
 import type { RouteContext } from "@internal/core";
 import { getAwsStore } from "../store.js";
-import { awsXmlResponse, awsErrorXml, md5, generateMessageId } from "../helpers.js";
+import { awsXmlResponse, awsErrorXml, md5, generateMessageId, escapeXml } from "../helpers.js";
 
 export function s3Routes(ctx: RouteContext): void {
   const { app, store, baseUrl } = ctx;
@@ -270,11 +270,3 @@ ${prefixesXml}
   });
 }
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}

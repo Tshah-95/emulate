@@ -1,6 +1,7 @@
 import type { RouteContext } from "@internal/core";
+import type { Context } from "hono";
 import { getAwsStore } from "../store.js";
-import { awsXmlResponse, awsErrorXml, generateAwsId, generateMessageId, getAccountId, parseQueryString } from "../helpers.js";
+import { awsXmlResponse, awsErrorXml, generateAwsId, generateMessageId, getAccountId, parseQueryString, escapeXml } from "../helpers.js";
 import { randomBytes } from "crypto";
 
 export function iamRoutes(ctx: RouteContext): void {
@@ -58,7 +59,7 @@ export function iamRoutes(ctx: RouteContext): void {
     }
   });
 
-  function createUser(c: any, params: Record<string, string>) {
+  function createUser(c: Context, params: Record<string, string>) {
     const userName = params["UserName"] ?? "";
     if (!userName) {
       return awsErrorXml(c, "ValidationError", "The request must contain the parameter UserName.", 400);
@@ -66,7 +67,7 @@ export function iamRoutes(ctx: RouteContext): void {
 
     const existing = aws().iamUsers.findOneBy("user_name", userName);
     if (existing) {
-      return awsErrorXml(c, "EntityAlreadyExists", `User with name ${userName} already exists.`, 409);
+      return awsErrorXml(c, "EntityAlreadyExists", `User with name ${escapeXml(userName)} already exists.`, 409);
     }
 
     const userId = generateAwsId("AIDA");
@@ -85,10 +86,10 @@ export function iamRoutes(ctx: RouteContext): void {
 <CreateUserResponse>
   <CreateUserResult>
     <User>
-      <Path>${path}</Path>
-      <UserName>${userName}</UserName>
+      <Path>${escapeXml(path)}</Path>
+      <UserName>${escapeXml(userName)}</UserName>
       <UserId>${userId}</UserId>
-      <Arn>${arn}</Arn>
+      <Arn>${escapeXml(arn)}</Arn>
       <CreateDate>${new Date().toISOString()}</CreateDate>
     </User>
   </CreateUserResult>
@@ -97,21 +98,21 @@ export function iamRoutes(ctx: RouteContext): void {
     return awsXmlResponse(c, xml);
   }
 
-  function getUser(c: any, params: Record<string, string>) {
+  function getUser(c: Context, params: Record<string, string>) {
     const userName = params["UserName"] ?? "";
     const user = aws().iamUsers.findOneBy("user_name", userName);
     if (!user) {
-      return awsErrorXml(c, "NoSuchEntity", `The user with name ${userName} cannot be found.`, 404);
+      return awsErrorXml(c, "NoSuchEntity", `The user with name ${escapeXml(userName)} cannot be found.`, 404);
     }
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <GetUserResponse>
   <GetUserResult>
     <User>
-      <Path>${user.path}</Path>
-      <UserName>${user.user_name}</UserName>
+      <Path>${escapeXml(user.path)}</Path>
+      <UserName>${escapeXml(user.user_name)}</UserName>
       <UserId>${user.user_id}</UserId>
-      <Arn>${user.arn}</Arn>
+      <Arn>${escapeXml(user.arn)}</Arn>
       <CreateDate>${user.created_at}</CreateDate>
     </User>
   </GetUserResult>
@@ -120,11 +121,11 @@ export function iamRoutes(ctx: RouteContext): void {
     return awsXmlResponse(c, xml);
   }
 
-  function deleteUser(c: any, params: Record<string, string>) {
+  function deleteUser(c: Context, params: Record<string, string>) {
     const userName = params["UserName"] ?? "";
     const user = aws().iamUsers.findOneBy("user_name", userName);
     if (!user) {
-      return awsErrorXml(c, "NoSuchEntity", `The user with name ${userName} cannot be found.`, 404);
+      return awsErrorXml(c, "NoSuchEntity", `The user with name ${escapeXml(userName)} cannot be found.`, 404);
     }
 
     aws().iamUsers.delete(user.id);
@@ -136,15 +137,15 @@ export function iamRoutes(ctx: RouteContext): void {
     return awsXmlResponse(c, xml);
   }
 
-  function listUsers(c: any) {
+  function listUsers(c: Context) {
     const users = aws().iamUsers.all();
     const usersXml = users
       .map(
         (u) => `      <member>
-        <Path>${u.path}</Path>
-        <UserName>${u.user_name}</UserName>
+        <Path>${escapeXml(u.path)}</Path>
+        <UserName>${escapeXml(u.user_name)}</UserName>
         <UserId>${u.user_id}</UserId>
-        <Arn>${u.arn}</Arn>
+        <Arn>${escapeXml(u.arn)}</Arn>
         <CreateDate>${u.created_at}</CreateDate>
       </member>`,
       )
@@ -163,11 +164,11 @@ ${usersXml}
     return awsXmlResponse(c, xml);
   }
 
-  function createAccessKey(c: any, params: Record<string, string>) {
+  function createAccessKey(c: Context, params: Record<string, string>) {
     const userName = params["UserName"] ?? "";
     const user = aws().iamUsers.findOneBy("user_name", userName);
     if (!user) {
-      return awsErrorXml(c, "NoSuchEntity", `The user with name ${userName} cannot be found.`, 404);
+      return awsErrorXml(c, "NoSuchEntity", `The user with name ${escapeXml(userName)} cannot be found.`, 404);
     }
 
     const accessKeyId = "AKIA" + randomBytes(8).toString("hex").toUpperCase();
@@ -180,7 +181,7 @@ ${usersXml}
 <CreateAccessKeyResponse>
   <CreateAccessKeyResult>
     <AccessKey>
-      <UserName>${userName}</UserName>
+      <UserName>${escapeXml(userName)}</UserName>
       <AccessKeyId>${accessKeyId}</AccessKeyId>
       <Status>Active</Status>
       <SecretAccessKey>${secretAccessKey}</SecretAccessKey>
@@ -192,17 +193,17 @@ ${usersXml}
     return awsXmlResponse(c, xml);
   }
 
-  function listAccessKeys(c: any, params: Record<string, string>) {
+  function listAccessKeys(c: Context, params: Record<string, string>) {
     const userName = params["UserName"] ?? "";
     const user = aws().iamUsers.findOneBy("user_name", userName);
     if (!user) {
-      return awsErrorXml(c, "NoSuchEntity", `The user with name ${userName} cannot be found.`, 404);
+      return awsErrorXml(c, "NoSuchEntity", `The user with name ${escapeXml(userName)} cannot be found.`, 404);
     }
 
     const keysXml = user.access_keys
       .map(
         (k) => `      <member>
-        <UserName>${userName}</UserName>
+        <UserName>${escapeXml(userName)}</UserName>
         <AccessKeyId>${k.access_key_id}</AccessKeyId>
         <Status>${k.status}</Status>
       </member>`,
@@ -222,12 +223,12 @@ ${keysXml}
     return awsXmlResponse(c, xml);
   }
 
-  function deleteAccessKey(c: any, params: Record<string, string>) {
+  function deleteAccessKey(c: Context, params: Record<string, string>) {
     const userName = params["UserName"] ?? "";
     const accessKeyId = params["AccessKeyId"] ?? "";
     const user = aws().iamUsers.findOneBy("user_name", userName);
     if (!user) {
-      return awsErrorXml(c, "NoSuchEntity", `The user with name ${userName} cannot be found.`, 404);
+      return awsErrorXml(c, "NoSuchEntity", `The user with name ${escapeXml(userName)} cannot be found.`, 404);
     }
 
     const keys = user.access_keys.filter((k) => k.access_key_id !== accessKeyId);
@@ -240,7 +241,7 @@ ${keysXml}
     return awsXmlResponse(c, xml);
   }
 
-  function createRole(c: any, params: Record<string, string>) {
+  function createRole(c: Context, params: Record<string, string>) {
     const roleName = params["RoleName"] ?? "";
     if (!roleName) {
       return awsErrorXml(c, "ValidationError", "The request must contain the parameter RoleName.", 400);
@@ -248,7 +249,7 @@ ${keysXml}
 
     const existing = aws().iamRoles.findOneBy("role_name", roleName);
     if (existing) {
-      return awsErrorXml(c, "EntityAlreadyExists", `Role with name ${roleName} already exists.`, 409);
+      return awsErrorXml(c, "EntityAlreadyExists", `Role with name ${escapeXml(roleName)} already exists.`, 409);
     }
 
     const roleId = generateAwsId("AROA");
@@ -270,13 +271,13 @@ ${keysXml}
 <CreateRoleResponse>
   <CreateRoleResult>
     <Role>
-      <Path>${path}</Path>
-      <RoleName>${roleName}</RoleName>
+      <Path>${escapeXml(path)}</Path>
+      <RoleName>${escapeXml(roleName)}</RoleName>
       <RoleId>${roleId}</RoleId>
-      <Arn>${arn}</Arn>
+      <Arn>${escapeXml(arn)}</Arn>
       <CreateDate>${new Date().toISOString()}</CreateDate>
       <AssumeRolePolicyDocument>${encodeURIComponent(assumeRolePolicy)}</AssumeRolePolicyDocument>
-      <Description>${description}</Description>
+      <Description>${escapeXml(description)}</Description>
     </Role>
   </CreateRoleResult>
   <ResponseMetadata><RequestId>${generateMessageId()}</RequestId></ResponseMetadata>
@@ -284,24 +285,24 @@ ${keysXml}
     return awsXmlResponse(c, xml);
   }
 
-  function getRole(c: any, params: Record<string, string>) {
+  function getRole(c: Context, params: Record<string, string>) {
     const roleName = params["RoleName"] ?? "";
     const role = aws().iamRoles.findOneBy("role_name", roleName);
     if (!role) {
-      return awsErrorXml(c, "NoSuchEntity", `The role with name ${roleName} cannot be found.`, 404);
+      return awsErrorXml(c, "NoSuchEntity", `The role with name ${escapeXml(roleName)} cannot be found.`, 404);
     }
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <GetRoleResponse>
   <GetRoleResult>
     <Role>
-      <Path>${role.path}</Path>
-      <RoleName>${role.role_name}</RoleName>
+      <Path>${escapeXml(role.path)}</Path>
+      <RoleName>${escapeXml(role.role_name)}</RoleName>
       <RoleId>${role.role_id}</RoleId>
-      <Arn>${role.arn}</Arn>
+      <Arn>${escapeXml(role.arn)}</Arn>
       <CreateDate>${role.created_at}</CreateDate>
       <AssumeRolePolicyDocument>${encodeURIComponent(role.assume_role_policy_document)}</AssumeRolePolicyDocument>
-      <Description>${role.description}</Description>
+      <Description>${escapeXml(role.description)}</Description>
     </Role>
   </GetRoleResult>
   <ResponseMetadata><RequestId>${generateMessageId()}</RequestId></ResponseMetadata>
@@ -309,11 +310,11 @@ ${keysXml}
     return awsXmlResponse(c, xml);
   }
 
-  function deleteRole(c: any, params: Record<string, string>) {
+  function deleteRole(c: Context, params: Record<string, string>) {
     const roleName = params["RoleName"] ?? "";
     const role = aws().iamRoles.findOneBy("role_name", roleName);
     if (!role) {
-      return awsErrorXml(c, "NoSuchEntity", `The role with name ${roleName} cannot be found.`, 404);
+      return awsErrorXml(c, "NoSuchEntity", `The role with name ${escapeXml(roleName)} cannot be found.`, 404);
     }
 
     aws().iamRoles.delete(role.id);
@@ -325,17 +326,17 @@ ${keysXml}
     return awsXmlResponse(c, xml);
   }
 
-  function listRoles(c: any) {
+  function listRoles(c: Context) {
     const roles = aws().iamRoles.all();
     const rolesXml = roles
       .map(
         (r) => `      <member>
-        <Path>${r.path}</Path>
-        <RoleName>${r.role_name}</RoleName>
+        <Path>${escapeXml(r.path)}</Path>
+        <RoleName>${escapeXml(r.role_name)}</RoleName>
         <RoleId>${r.role_id}</RoleId>
-        <Arn>${r.arn}</Arn>
+        <Arn>${escapeXml(r.arn)}</Arn>
         <CreateDate>${r.created_at}</CreateDate>
-        <Description>${r.description}</Description>
+        <Description>${escapeXml(r.description)}</Description>
       </member>`,
       )
       .join("\n");
@@ -353,16 +354,20 @@ ${rolesXml}
     return awsXmlResponse(c, xml);
   }
 
-  function getCallerIdentity(c: any) {
-    const authUser = c.get("authUser");
+  function getCallerIdentity(c: Context) {
+    const authUser = c.get("authUser") as { login?: string } | undefined;
     const userName = authUser?.login ?? "admin";
     const arn = `arn:aws:iam::${accountId}:user/${userName}`;
+
+    // Return stable UserId from the IAM store when available
+    const user = aws().iamUsers.findOneBy("user_name", userName);
+    const userId = user?.user_id ?? generateAwsId("AIDA");
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <GetCallerIdentityResponse>
   <GetCallerIdentityResult>
-    <Arn>${arn}</Arn>
-    <UserId>${generateAwsId("AIDA")}</UserId>
+    <Arn>${escapeXml(arn)}</Arn>
+    <UserId>${userId}</UserId>
     <Account>${accountId}</Account>
   </GetCallerIdentityResult>
   <ResponseMetadata><RequestId>${generateMessageId()}</RequestId></ResponseMetadata>
@@ -370,7 +375,7 @@ ${rolesXml}
     return awsXmlResponse(c, xml);
   }
 
-  function assumeRole(c: any, params: Record<string, string>) {
+  function assumeRole(c: Context, params: Record<string, string>) {
     const roleArn = params["RoleArn"] ?? "";
     const sessionName = params["RoleSessionName"] ?? "session";
 
