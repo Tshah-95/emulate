@@ -11,6 +11,18 @@ const SERVICE_DESCRIPTIONS: Record<string, { label: string; endpoints: string }>
     label: "Google OAuth 2.0 / OpenID Connect emulator",
     endpoints: "OAuth authorize, token exchange, userinfo, OIDC discovery, token revocation",
   },
+  slack: {
+    label: "Slack API emulator",
+    endpoints: "OAuth, auth, chat, conversations, users, reactions, team, webhooks",
+  },
+  apple: {
+    label: "Apple ID OAuth 2.0 / OpenID Connect emulator",
+    endpoints: "OAuth authorize, token exchange, OIDC discovery, JWKS, token revocation",
+  },
+  microsoft: {
+    label: "Microsoft Entra ID OAuth 2.0 / OpenID Connect emulator",
+    endpoints: "OAuth authorize, token exchange, userinfo, OIDC discovery, Graph /me, logout, token revocation",
+  },
 };
 
 export function listCommand(): void {
