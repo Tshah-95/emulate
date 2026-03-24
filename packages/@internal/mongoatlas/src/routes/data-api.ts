@@ -70,7 +70,7 @@ export function dataApiRoutes(ctx: RouteContext): void {
     docs = matchFilter(docs, body.filter) ?? docs;
 
     if (body.sort) {
-      docs = applySortToDocuments(docs, body.sort);
+      docs = sortBySpec(docs, body.sort, (d) => d.data);
     }
 
     if (body.skip) {
@@ -361,7 +361,7 @@ export function dataApiRoutes(ctx: RouteContext): void {
         results = results.slice(stage.$skip as number);
       } else if ("$sort" in stage) {
         const sortSpec = stage.$sort as Record<string, number>;
-        results = sortDocumentData(results, sortSpec);
+        results = sortBySpec(results, sortSpec, (d) => d);
       } else if ("$project" in stage) {
         const projection = stage.$project as Record<string, unknown>;
         results = results.map((d) => applyProjection(d, projection));
@@ -529,6 +529,7 @@ function applyUpdate(data: Record<string, unknown>, update: Record<string, unkno
     const unsetFields = update.$unset as Record<string, unknown>;
     for (const key of Object.keys(unsetFields)) {
       const parts = key.split(".");
+      if (hasDangerousKey(parts)) continue;
       if (parts.length === 1) {
         delete result[key];
       } else {
@@ -575,19 +576,21 @@ function applyUpdate(data: Record<string, unknown>, update: Record<string, unkno
   if ("$rename" in update) {
     const renameFields = update.$rename as Record<string, string>;
     for (const [oldKey, newKey] of Object.entries(renameFields)) {
+      const oldParts = oldKey.split(".");
+      const newParts = newKey.split(".");
+      if (hasDangerousKey(oldParts) || hasDangerousKey(newParts)) continue;
       const value = getNestedValue(result, oldKey);
       if (value !== undefined) {
         setNestedValue(result, newKey, value);
-        const parts = oldKey.split(".");
-        if (parts.length === 1) {
+        if (oldParts.length === 1) {
           delete result[oldKey];
         } else {
           let current: Record<string, unknown> = result;
-          for (let i = 0; i < parts.length - 1; i++) {
-            if (typeof current[parts[i]] !== "object" || current[parts[i]] === null) break;
-            current = current[parts[i]] as Record<string, unknown>;
+          for (let i = 0; i < oldParts.length - 1; i++) {
+            if (typeof current[oldParts[i]] !== "object" || current[oldParts[i]] === null) break;
+            current = current[oldParts[i]] as Record<string, unknown>;
           }
-          delete current[parts[parts.length - 1]];
+          delete current[oldParts[oldParts.length - 1]];
         }
       }
     }
@@ -607,8 +610,15 @@ function applyUpdate(data: Record<string, unknown>, update: Record<string, unkno
   return result;
 }
 
+const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function hasDangerousKey(parts: string[]): boolean {
+  return parts.some((p) => DANGEROUS_KEYS.has(p));
+}
+
 function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split(".");
+  if (hasDangerousKey(parts)) return;
   let current = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     if (!(parts[i] in current) || typeof current[parts[i]] !== "object") {
@@ -619,26 +629,11 @@ function setNestedValue(obj: Record<string, unknown>, path: string, value: unkno
   current[parts[parts.length - 1]] = value;
 }
 
-function sortDocumentData(docs: Record<string, unknown>[], sortSpec: Record<string, number>): Record<string, unknown>[] {
+function sortBySpec<T>(docs: T[], sortSpec: Record<string, number>, accessor: (doc: T) => Record<string, unknown>): T[] {
   return [...docs].sort((a, b) => {
     for (const [key, direction] of Object.entries(sortSpec)) {
-      const aVal = getNestedValue(a, key);
-      const bVal = getNestedValue(b, key);
-      if (aVal === bVal) continue;
-      if (aVal === undefined) return direction;
-      if (bVal === undefined) return -direction;
-      if (aVal < bVal) return -direction;
-      if (aVal > bVal) return direction;
-    }
-    return 0;
-  });
-}
-
-function applySortToDocuments<T extends MongoAtlasDocEntity>(docs: T[], sortSpec: Record<string, number>): T[] {
-  return [...docs].sort((a, b) => {
-    for (const [key, direction] of Object.entries(sortSpec)) {
-      const aVal = getNestedValue(a.data, key);
-      const bVal = getNestedValue(b.data, key);
+      const aVal = getNestedValue(accessor(a), key);
+      const bVal = getNestedValue(accessor(b), key);
       if (aVal === bVal) continue;
       if (aVal === undefined) return direction;
       if (bVal === undefined) return -direction;
