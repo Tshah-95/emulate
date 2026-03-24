@@ -109,11 +109,12 @@ export function oauthRoutes({ app, store, baseUrl, tokenMap }: RouteContext): vo
     userinfo_endpoint: `${baseUrl}/oidc/userinfo`,
     end_session_endpoint: `${baseUrl}/oauth2/v2.0/logout`,
     jwks_uri: `${baseUrl}/discovery/v2.0/keys`,
-    response_types_supported: ["code", "id_token", "code id_token"],
+    response_types_supported: ["code"],
     response_modes_supported: ["query", "fragment", "form_post"],
     subject_types_supported: ["pairwise"],
     id_token_signing_alg_values_supported: ["RS256"],
-    scopes_supported: ["openid", "email", "profile", "offline_access", "User.Read"],
+    scopes_supported: ["openid", "email", "profile", "offline_access", "User.Read", ".default"],
+    grant_types_supported: ["authorization_code", "refresh_token", "client_credentials"],
     token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
     claims_supported: [
       "sub", "iss", "aud", "exp", "iat", "nonce",
@@ -297,11 +298,25 @@ export function oauthRoutes({ app, store, baseUrl, tokenMap }: RouteContext): vo
 
     const grant_type = typeof body.grant_type === "string" ? body.grant_type : "";
     const code = typeof body.code === "string" ? body.code : "";
-    const client_id = typeof body.client_id === "string" ? body.client_id : "";
-    const client_secret = typeof body.client_secret === "string" ? body.client_secret : "";
+    let client_id = typeof body.client_id === "string" ? body.client_id : "";
+    let client_secret = typeof body.client_secret === "string" ? body.client_secret : "";
     const refresh_token = typeof body.refresh_token === "string" ? body.refresh_token : "";
     const redirect_uri = typeof body.redirect_uri === "string" ? body.redirect_uri : "";
     const code_verifier = typeof body.code_verifier === "string" ? body.code_verifier : undefined;
+    const scope = typeof body.scope === "string" ? body.scope : "";
+
+    // Support client_secret_basic: credentials in Authorization header
+    const authHeader = c.req.header("Authorization") ?? "";
+    if (authHeader.startsWith("Basic ")) {
+      const decoded = Buffer.from(authHeader.slice(6), "base64").toString();
+      const sep = decoded.indexOf(":");
+      if (sep !== -1) {
+        const headerId = decodeURIComponent(decoded.slice(0, sep));
+        const headerSecret = decodeURIComponent(decoded.slice(sep + 1));
+        if (!client_id) client_id = headerId;
+        if (!client_secret) client_secret = headerSecret;
+      }
+    }
 
     if (grant_type === "authorization_code") {
       const clientsConfigured = ms.oauthClients.all().length > 0;
@@ -432,7 +447,36 @@ export function oauthRoutes({ app, store, baseUrl, tokenMap }: RouteContext): vo
       });
     }
 
-    return c.json({ error: "unsupported_grant_type", error_description: "Only authorization_code and refresh_token are supported." }, 400);
+    if (grant_type === "client_credentials") {
+      const clientsConfigured = ms.oauthClients.all().length > 0;
+      if (clientsConfigured) {
+        const client = ms.oauthClients.findOneBy("client_id", client_id);
+        if (!client) {
+          return c.json({ error: "invalid_client", error_description: "The client_id is incorrect." }, 401);
+        }
+        if (!constantTimeSecretEqual(client_secret, client.client_secret)) {
+          return c.json({ error: "invalid_client", error_description: "The client_secret is incorrect." }, 401);
+        }
+      }
+
+      const accessToken = "microsoft_" + randomBytes(20).toString("base64url");
+      const scopes = scope ? scope.split(/\s+/).filter(Boolean) : [".default"];
+
+      if (tokenMap) {
+        tokenMap.set(accessToken, { login: client_id, id: 0, scopes });
+      }
+
+      debug("microsoft.oauth", `[Microsoft client_credentials] issued token for ${client_id}`);
+
+      return c.json({
+        access_token: accessToken,
+        token_type: "Bearer",
+        expires_in: 3600,
+        scope: scope || ".default",
+      });
+    }
+
+    return c.json({ error: "unsupported_grant_type", error_description: "Only authorization_code, refresh_token, and client_credentials are supported." }, 400);
   });
 
   // ---------- UserInfo (Microsoft Graph /oidc/userinfo) ----------

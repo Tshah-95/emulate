@@ -134,8 +134,9 @@ describe("Microsoft plugin integration", () => {
     expect(body.userinfo_endpoint).toBe(`${base}/oidc/userinfo`);
     expect(body.end_session_endpoint).toBe(`${base}/oauth2/v2.0/logout`);
     expect(body.jwks_uri).toBe(`${base}/discovery/v2.0/keys`);
-    expect(body.response_types_supported).toContain("code");
+    expect(body.response_types_supported).toEqual(["code"]);
     expect(body.response_modes_supported).toEqual(["query", "fragment", "form_post"]);
+    expect(body.grant_types_supported).toEqual(["authorization_code", "refresh_token", "client_credentials"]);
     expect(body.subject_types_supported).toEqual(["pairwise"]);
     expect(body.scopes_supported).toContain("openid");
     expect(body.scopes_supported).toContain("User.Read");
@@ -305,7 +306,7 @@ describe("Microsoft plugin integration", () => {
 
   it("rejects unsupported grant type", async () => {
     const formData = new URLSearchParams({
-      grant_type: "client_credentials",
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
       client_id: "test-client",
       client_secret: "test-secret",
     });
@@ -408,6 +409,124 @@ describe("Microsoft plugin integration", () => {
     expect(res.status).toBe(401);
     const body = await res.json() as Record<string, unknown>;
     expect(body.error).toBe("invalid_client");
+  });
+
+  // --- client_secret_basic authentication ---
+
+  it("accepts client credentials via Authorization Basic header", async () => {
+    const { code } = await getAuthCode(app);
+
+    const credentials = Buffer.from("test-client:test-secret").toString("base64");
+    const formData = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: "http://localhost:3000/callback",
+    });
+
+    const res = await app.request(`${base}/oauth2/v2.0/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${credentials}`,
+      },
+      body: formData.toString(),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.access_token).toBeDefined();
+    expect((body.access_token as string).startsWith("microsoft_")).toBe(true);
+  });
+
+  it("rejects incorrect secret via Authorization Basic header", async () => {
+    const { code } = await getAuthCode(app);
+
+    const credentials = Buffer.from("test-client:wrong-secret").toString("base64");
+    const formData = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: "http://localhost:3000/callback",
+    });
+
+    const res = await app.request(`${base}/oauth2/v2.0/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${credentials}`,
+      },
+      body: formData.toString(),
+    });
+
+    expect(res.status).toBe(401);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.error).toBe("invalid_client");
+  });
+
+  // --- client_credentials grant type ---
+
+  it("issues token for client_credentials grant", async () => {
+    const formData = new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: "test-client",
+      client_secret: "test-secret",
+      scope: "https://graph.microsoft.com/.default",
+    });
+
+    const res = await app.request(`${base}/oauth2/v2.0/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString(),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.access_token).toBeDefined();
+    expect((body.access_token as string).startsWith("microsoft_")).toBe(true);
+    expect(body.token_type).toBe("Bearer");
+    expect(body.expires_in).toBe(3600);
+    expect(body.scope).toBe("https://graph.microsoft.com/.default");
+    // client_credentials should NOT return refresh_token or id_token
+    expect(body.refresh_token).toBeUndefined();
+    expect(body.id_token).toBeUndefined();
+  });
+
+  it("rejects client_credentials with wrong secret", async () => {
+    const formData = new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: "test-client",
+      client_secret: "wrong-secret",
+    });
+
+    const res = await app.request(`${base}/oauth2/v2.0/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString(),
+    });
+
+    expect(res.status).toBe(401);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.error).toBe("invalid_client");
+  });
+
+  it("supports client_credentials with Basic auth header", async () => {
+    const credentials = Buffer.from("test-client:test-secret").toString("base64");
+    const formData = new URLSearchParams({
+      grant_type: "client_credentials",
+      scope: ".default",
+    });
+
+    const res = await app.request(`${base}/oauth2/v2.0/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${credentials}`,
+      },
+      body: formData.toString(),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.access_token).toBeDefined();
   });
 
   // --- Seed from config ---
