@@ -215,6 +215,18 @@ export function oauthRoutes({ app, store, baseUrl, tokenMap }: RouteContext): vo
     const code_challenge = bodyStr(body.code_challenge);
     const code_challenge_method = bodyStr(body.code_challenge_method);
 
+    // Validate redirect_uri against registered client
+    const clientsConfigured = ms.oauthClients.all().length > 0;
+    if (clientsConfigured && redirect_uri) {
+      const client = ms.oauthClients.findOneBy("client_id", client_id);
+      if (client && !matchesRedirectUri(redirect_uri, client.redirect_uris)) {
+        return c.html(
+          renderErrorPage("Redirect URI mismatch", "The redirect_uri is not registered for this application.", SERVICE_LABEL),
+          400,
+        );
+      }
+    }
+
     const code = randomBytes(20).toString("hex");
 
     getPendingCodes(store).set(code, {
@@ -270,6 +282,7 @@ export function oauthRoutes({ app, store, baseUrl, tokenMap }: RouteContext): vo
     const client_id = typeof body.client_id === "string" ? body.client_id : "";
     const client_secret = typeof body.client_secret === "string" ? body.client_secret : "";
     const refresh_token = typeof body.refresh_token === "string" ? body.refresh_token : "";
+    const redirect_uri = typeof body.redirect_uri === "string" ? body.redirect_uri : "";
     const code_verifier = typeof body.code_verifier === "string" ? body.code_verifier : undefined;
 
     if (grant_type === "authorization_code") {
@@ -294,8 +307,14 @@ export function oauthRoutes({ app, store, baseUrl, tokenMap }: RouteContext): vo
         return c.json({ error: "invalid_grant", error_description: "The code is incorrect or expired." }, 400);
       }
 
+      // Verify redirect_uri matches the one used in the authorization request (RFC 6749 §4.1.3)
+      if (pending.redirectUri && redirect_uri && pending.redirectUri !== redirect_uri) {
+        pendingMap.delete(code);
+        return c.json({ error: "invalid_grant", error_description: "The redirect_uri does not match the one used in the authorization request." }, 400);
+      }
+
       // PKCE verification
-      if (pending.codeChallenge != null) {
+      if (pending.codeChallenge !== null) {
         if (code_verifier === undefined) {
           return c.json({ error: "invalid_grant", error_description: "PKCE verification failed." }, 400);
         }
