@@ -61,15 +61,21 @@ export function sqsRoutes(ctx: RouteContext): void {
     const queueUrl = `${baseUrl}/sqs/${accountId}/${queueName}`;
     const arn = `arn:aws:sqs:us-east-1:${accountId}:${queueName}`;
 
+    // Parse numbered Attribute.N.Name / Attribute.N.Value pairs
+    const attrs: Record<string, string> = {};
+    for (let i = 1; params[`Attribute.${i}.Name`]; i++) {
+      attrs[params[`Attribute.${i}.Name`]] = params[`Attribute.${i}.Value`] ?? "";
+    }
+
     aws().sqsQueues.insert({
       queue_name: queueName,
       queue_url: queueUrl,
       arn,
-      visibility_timeout: parseInt(params["Attribute.1.Value"] ?? "30", 10),
-      delay_seconds: 0,
-      max_message_size: 262144,
-      message_retention_period: 345600,
-      receive_message_wait_time: 0,
+      visibility_timeout: parseInt(attrs["VisibilityTimeout"] ?? "30", 10),
+      delay_seconds: parseInt(attrs["DelaySeconds"] ?? "0", 10),
+      max_message_size: parseInt(attrs["MaximumMessageSize"] ?? "262144", 10),
+      message_retention_period: parseInt(attrs["MessageRetentionPeriod"] ?? "345600", 10),
+      receive_message_wait_time: parseInt(attrs["ReceiveMessageWaitTimeSeconds"] ?? "0", 10),
       fifo,
     });
 
