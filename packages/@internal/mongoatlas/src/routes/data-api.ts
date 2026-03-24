@@ -450,7 +450,11 @@ function matchesFilter(data: Record<string, unknown>, filter: Record<string, unk
           case "$regex": {
             const pattern = opVal as string;
             const flags = (ops.$options as string) ?? "";
-            if (typeof docValue !== "string" || !new RegExp(pattern, flags).test(docValue)) return false;
+            try {
+              if (typeof docValue !== "string" || !new RegExp(pattern, flags).test(docValue)) return false;
+            } catch {
+              return false;
+            }
             break;
           }
         }
@@ -518,7 +522,17 @@ function applyUpdate(data: Record<string, unknown>, update: Record<string, unkno
   if ("$unset" in update) {
     const unsetFields = update.$unset as Record<string, unknown>;
     for (const key of Object.keys(unsetFields)) {
-      delete result[key];
+      const parts = key.split(".");
+      if (parts.length === 1) {
+        delete result[key];
+      } else {
+        let current: Record<string, unknown> = result;
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (current[parts[i]] === null || current[parts[i]] === undefined || typeof current[parts[i]] !== "object") break;
+          current = current[parts[i]] as Record<string, unknown>;
+        }
+        delete current[parts[parts.length - 1]];
+      }
     }
   }
 

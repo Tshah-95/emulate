@@ -35,7 +35,7 @@ export function adminRoutes(ctx: RouteContext): void {
   // Create project
   app.post("/api/atlas/v2/groups", async (c) => {
     const body = await c.req.json<{ name?: string; orgId?: string }>();
-    if (!body.name) {
+    if (!body.name?.trim()) {
       return mongoError(c, "bad request", "INVALID_PARAMETER", "name is required");
     }
 
@@ -126,7 +126,7 @@ export function adminRoutes(ctx: RouteContext): void {
       mongoDBMajorVersion?: string;
     }>();
 
-    if (!body.name) {
+    if (!body.name?.trim()) {
       return mongoError(c, "bad request", "INVALID_PARAMETER", "name is required");
     }
 
@@ -262,7 +262,7 @@ export function adminRoutes(ctx: RouteContext): void {
       roles?: Array<{ databaseName: string; roleName: string }>;
     }>();
 
-    if (!body.username) {
+    if (!body.username?.trim()) {
       return mongoError(c, "bad request", "INVALID_PARAMETER", "username is required");
     }
 
