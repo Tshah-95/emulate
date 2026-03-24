@@ -13,13 +13,11 @@ import {
   debug,
 } from "@internal/core";
 import { getMicrosoftStore } from "../store.js";
+import { DEFAULT_TENANT_ID } from "../helpers.js";
 import type { MicrosoftUser } from "../entities.js";
 import type { Store } from "@internal/core";
 
 const JWT_SECRET = new TextEncoder().encode("emulate-microsoft-jwt-secret");
-
-/** Default tenant ID used when none is configured */
-const DEFAULT_TENANT_ID = "9188040d-6c67-4c5b-b112-36a304b66dad";
 
 type PendingCode = {
   email: string;

@@ -1,23 +1,11 @@
-import { randomBytes, randomUUID } from "crypto";
+import { randomUUID } from "crypto";
+
+/** Default tenant ID used when none is configured */
+export const DEFAULT_TENANT_ID = "9188040d-6c67-4c5b-b112-36a304b66dad";
 
 /**
  * Generate a Microsoft-style object ID (UUID v4 format).
  */
 export function generateOid(): string {
   return randomUUID();
-}
-
-/**
- * Generate a Microsoft-style tenant ID (UUID v4 format).
- */
-export function generateTenantId(): string {
-  return randomUUID();
-}
-
-/**
- * Generate a random subject identifier for the id_token `sub` claim.
- * Microsoft uses a pairwise, opaque, app-specific identifier.
- */
-export function generateSubjectId(): string {
-  return randomBytes(16).toString("base64url");
 }

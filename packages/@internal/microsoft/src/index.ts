@@ -1,13 +1,12 @@
 import type { Hono } from "hono";
 import type { ServicePlugin, Store, WebhookDispatcher, TokenMap, AppEnv, RouteContext } from "@internal/core";
 import { getMicrosoftStore } from "./store.js";
-import { generateOid, generateTenantId } from "./helpers.js";
+import { generateOid, DEFAULT_TENANT_ID } from "./helpers.js";
 import { oauthRoutes } from "./routes/oauth.js";
 
 export { getMicrosoftStore, type MicrosoftStore } from "./store.js";
 export * from "./entities.js";
 
-const DEFAULT_TENANT_ID = "9188040d-6c67-4c5b-b112-36a304b66dad";
 
 export interface MicrosoftSeedConfig {
   users?: Array<{
