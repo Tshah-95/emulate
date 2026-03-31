@@ -14,7 +14,7 @@ export interface ServiceEntry {
   initConfig: Record<string, unknown>;
 }
 
-const SERVICE_NAME_LIST = ["vercel", "github", "google", "slack", "apple", "microsoft", "aws", "mongoatlas"] as const;
+const SERVICE_NAME_LIST = ["vercel", "github", "google", "slack", "apple", "microsoft", "okta", "aws", "resend", "stripe", "mongoatlas"] as const;
 export type ServiceName = (typeof SERVICE_NAME_LIST)[number];
 export const SERVICE_NAMES: readonly ServiceName[] = SERVICE_NAME_LIST;
 
@@ -192,6 +192,36 @@ export const SERVICE_REGISTRY: Record<ServiceName, ServiceEntry> = {
     },
   },
 
+  okta: {
+    label: "Okta OAuth 2.0 / OpenID Connect + management API emulator",
+    endpoints: "OIDC discovery, JWKS, OAuth authorize/token/userinfo/introspect/revoke/logout, users, groups, apps, authorization servers",
+    async load() {
+      const mod = await import("@emulators/okta");
+      return { plugin: mod.oktaPlugin, seedFromConfig: mod.seedFromConfig };
+    },
+    defaultFallback(cfg) {
+      const firstLogin =
+        (cfg?.users as Array<{ login?: string; email?: string }> | undefined)?.[0]?.login ??
+        (cfg?.users as Array<{ login?: string; email?: string }> | undefined)?.[0]?.email ??
+        "testuser@okta.local";
+      return { login: firstLogin, id: 1, scopes: ["openid", "profile", "email", "groups"] };
+    },
+    initConfig: {
+      okta: {
+        users: [{ login: "testuser@okta.local", email: "testuser@okta.local", first_name: "Test", last_name: "User" }],
+        groups: [{ name: "Everyone", description: "All users", type: "BUILT_IN", okta_id: "00g_everyone" }],
+        authorization_servers: [{ id: "default", name: "default", audiences: ["api://default"] }],
+        oauth_clients: [{
+          client_id: "okta-test-client",
+          client_secret: "okta-test-secret",
+          name: "Sample OIDC Client",
+          redirect_uris: ["http://localhost:3000/callback"],
+          auth_server_id: "default",
+        }],
+      },
+    },
+  },
+
   aws: {
     label: "AWS cloud service emulator",
     endpoints: "S3 (buckets, objects), SQS (queues, messages), IAM (users, roles, access keys), STS (assume role, caller identity)",
@@ -211,6 +241,41 @@ export const SERVICE_REGISTRY: Record<ServiceName, ServiceEntry> = {
           users: [{ user_name: "developer", create_access_key: true }],
           roles: [{ role_name: "lambda-execution-role", description: "Role for Lambda function execution" }],
         },
+      },
+    },
+  },
+  resend: {
+    label: "Resend email API emulator",
+    endpoints: "emails, domains, contacts, API keys, inbox UI",
+    async load() {
+      const mod = await import("@emulators/resend");
+      return { plugin: mod.resendPlugin, seedFromConfig: mod.seedFromConfig };
+    },
+    defaultFallback() {
+      return { login: "re_test_admin", id: 1, scopes: [] };
+    },
+    initConfig: {
+      resend: {
+        domains: [{ name: "example.com", region: "us-east-1" }],
+        contacts: [{ email: "test@example.com", first_name: "Test", last_name: "User" }],
+      },
+    },
+  },
+  stripe: {
+    label: "Stripe payments emulator",
+    endpoints: "customers, payment intents, charges, products, prices, checkout sessions, webhooks",
+    async load() {
+      const mod = await import("@emulators/stripe");
+      return { plugin: mod.stripePlugin, seedFromConfig: mod.seedFromConfig };
+    },
+    defaultFallback() {
+      return { login: "sk_test_admin", id: 1, scopes: [] };
+    },
+    initConfig: {
+      stripe: {
+        customers: [{ email: "test@example.com", name: "Test Customer" }],
+        products: [{ name: "Pro Plan", description: "Monthly pro subscription" }],
+        prices: [{ product_name: "Pro Plan", currency: "usd", unit_amount: 2000 }],
       },
     },
   },
