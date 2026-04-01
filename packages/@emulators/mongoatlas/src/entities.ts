@@ -18,7 +18,6 @@ export interface MongoAtlasCluster extends Entity {
   cluster_type: "REPLICASET" | "SHARDED";
   disk_size_gb: number;
   mongodb_version: string;
-  created_at: string;
 }
 
 export interface MongoAtlasDatabase extends Entity {
@@ -45,7 +44,6 @@ export interface MongoAtlasProject extends Entity {
   name: string;
   org_id: string;
   cluster_count: number;
-  created_at: string;
 }
 
 export interface MongoAtlasUser extends Entity {

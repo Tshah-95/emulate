@@ -50,7 +50,6 @@ export function adminRoutes(ctx: RouteContext): void {
       name: body.name,
       org_id: body.orgId ?? "default_org",
       cluster_count: 0,
-      created_at: new Date().toISOString(),
     });
 
     return mongoOk(c, formatProject(project), 201);
@@ -157,7 +156,6 @@ export function adminRoutes(ctx: RouteContext): void {
       cluster_type: body.clusterType ?? "REPLICASET",
       disk_size_gb: body.diskSizeGB ?? 10,
       mongodb_version: body.mongoDBMajorVersion ?? "8.0",
-      created_at: new Date().toISOString(),
     });
 
     ms().projects.update(project.id, { cluster_count: project.cluster_count + 1 });
