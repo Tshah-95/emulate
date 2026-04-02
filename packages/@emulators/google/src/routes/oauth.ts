@@ -238,6 +238,52 @@ export function oauthRoutes({ app, store, baseUrl, tokenMap }: RouteContext): vo
     const bodyClientId = typeof body.client_id === "string" ? body.client_id : "";
     const bodyClientSecret = typeof body.client_secret === "string" ? body.client_secret : "";
 
+    // ---------- JWT Bearer (service account impersonation) ----------
+
+    if (grant_type === "urn:ietf:params:oauth:grant-type:jwt-bearer") {
+      const assertion = typeof body.assertion === "string" ? body.assertion : "";
+      if (!assertion) {
+        return c.json({ error: "invalid_request", error_description: "Missing assertion." }, 400);
+      }
+
+      // Decode JWT without verification — emulator trusts all service accounts
+      const parts = assertion.split(".");
+      if (parts.length < 2) {
+        return c.json({ error: "invalid_grant", error_description: "Malformed JWT assertion." }, 400);
+      }
+      let payload: { sub?: string; scope?: string };
+      try {
+        payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString());
+      } catch {
+        return c.json({ error: "invalid_grant", error_description: "Malformed JWT payload." }, 400);
+      }
+
+      const subject = payload.sub;
+      if (!subject) {
+        return c.json({ error: "invalid_grant", error_description: "JWT missing sub claim." }, 400);
+      }
+
+      const user = gs.users.findOneBy("email", subject as GoogleUser["email"]);
+      if (!user) {
+        return c.json({ error: "invalid_grant", error_description: `No seeded user: ${subject}` }, 400);
+      }
+
+      const accessToken = "google_" + randomBytes(20).toString("base64url");
+      const scopes = payload.scope ? payload.scope.split(/\s+/).filter(Boolean) : [];
+
+      if (tokenMap) {
+        tokenMap.set(accessToken, { login: user.email, id: user.id, scopes });
+      }
+
+      debug("google.oauth", `[Google JWT bearer] issued token for ${user.email} (service account impersonation)`);
+
+      return c.json({
+        access_token: accessToken,
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    }
+
     const clientsConfigured = gs.oauthClients.all().length > 0;
     if (clientsConfigured) {
       const client = gs.oauthClients.findOneBy("client_id", bodyClientId);
